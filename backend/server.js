@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { initializeDatabase } from './config/database.js';
 import authRoutes from './routes/auth.js';
 import watchlistRoutes from './routes/watchlist.js';
+import algorithmsRoutes from './routes/algorithms.js';
 
 // Load environment variables
 dotenv.config();
@@ -19,6 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/watchlist', watchlistRoutes);
+app.use('/api/algorithms', algorithmsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -42,6 +44,17 @@ app.get('/', (req, res) => {
         add: 'POST /api/watchlist',
         remove: 'DELETE /api/watchlist/:symbol',
         check: 'GET /api/watchlist/check/:symbol'
+      },
+      algorithms: {
+        list: 'GET /api/algorithms',
+        get: 'GET /api/algorithms/:id',
+        create: 'POST /api/algorithms',
+        update: 'PUT /api/algorithms/:id',
+        delete: 'DELETE /api/algorithms/:id',
+        toggle: 'PATCH /api/algorithms/:id/toggle',
+        addRule: 'POST /api/algorithms/:id/rules',
+        updateRule: 'PUT /api/algorithms/:algorithmId/rules/:ruleId',
+        deleteRule: 'DELETE /api/algorithms/:algorithmId/rules/:ruleId'
       }
     }
   });

@@ -30,12 +30,15 @@ Day-trader/
 │   │   └── database.js          # SQLite database setup and initialization
 │   ├── models/
 │   │   ├── User.js              # User model (create, find, verify password)
-│   │   └── Watchlist.js         # Watchlist model (add, remove, list stocks)
+│   │   ├── Watchlist.js         # Watchlist model (add, remove, list stocks)
+│   │   ├── TradingAlgorithm.js  # Trading algorithm model
+│   │   └── AlgorithmRule.js     # Algorithm rules model
 │   ├── middleware/
 │   │   └── auth.js              # JWT authentication middleware
 │   ├── routes/
 │   │   ├── auth.js              # Auth routes (register, login, me)
-│   │   └── watchlist.js         # Watchlist routes (CRUD operations)
+│   │   ├── watchlist.js         # Watchlist routes (CRUD operations)
+│   │   └── algorithms.js        # Algorithm and rules routes
 │   ├── server.js                # Main Express server
 │   ├── .env                     # Environment variables (gitignored)
 │   └── package.json
@@ -109,6 +112,26 @@ npm run preview                  # Preview production build
 - `added_at`: Timestamp when stock was added
 - Unique constraint on (user_id, symbol)
 
+### Trading Algorithms Table
+- `id`: Primary key
+- `user_id`: Foreign key to users table
+- `name`: Algorithm name
+- `description`: Optional description
+- `is_active`: Boolean flag (0/1) for active status
+- `created_at`: Creation timestamp
+- `updated_at`: Last update timestamp
+
+### Algorithm Rules Table
+- `id`: Primary key
+- `algorithm_id`: Foreign key to trading_algorithms table (cascade delete)
+- `rule_type`: Type of rule (e.g., 'entry', 'exit', 'stop_loss')
+- `condition_field`: Field to evaluate (e.g., 'price', 'volume')
+- `condition_operator`: Comparison operator (>, <, >=, <=, ==, !=)
+- `condition_value`: Value to compare against
+- `action`: Action to take when condition is met
+- `order_index`: Order of rule execution
+- `created_at`: Creation timestamp
+
 ## API Endpoints
 
 ### Authentication
@@ -121,6 +144,19 @@ npm run preview                  # Preview production build
 - `POST /api/watchlist` - Add stock to watchlist (protected)
 - `DELETE /api/watchlist/:symbol` - Remove stock from watchlist (protected)
 - `GET /api/watchlist/check/:symbol` - Check if stock is in watchlist (protected)
+
+### Trading Algorithms
+- `GET /api/algorithms` - Get all user's algorithms (protected)
+- `GET /api/algorithms/:id` - Get algorithm by ID with rules (protected)
+- `POST /api/algorithms` - Create new algorithm (protected)
+- `PUT /api/algorithms/:id` - Update algorithm (protected)
+- `DELETE /api/algorithms/:id` - Delete algorithm (protected)
+- `PATCH /api/algorithms/:id/toggle` - Toggle algorithm active status (protected)
+
+### Algorithm Rules
+- `POST /api/algorithms/:id/rules` - Add rule to algorithm (protected)
+- `PUT /api/algorithms/:algorithmId/rules/:ruleId` - Update rule (protected)
+- `DELETE /api/algorithms/:algorithmId/rules/:ruleId` - Delete rule (protected)
 
 All protected routes require `Authorization: Bearer <token>` header.
 
@@ -155,14 +191,38 @@ All protected routes require `Authorization: Bearer <token>` header.
 **Frontend (.env):**
 - `VITE_API_URL`: Backend API URL (default: http://localhost:5000/api)
 
+## Trading Algorithms
+
+The application supports creating custom trading algorithms with configurable rules:
+
+**Algorithm Structure:**
+- Each algorithm belongs to a user and can be activated/deactivated
+- Algorithms contain multiple rules that define trading logic
+- Rules are executed in order (via order_index)
+
+**Rule Components:**
+- `rule_type`: Categorizes the rule (e.g., 'entry', 'exit', 'stop_loss')
+- `condition_field`: The data field to evaluate (e.g., 'price', 'volume', 'rsi')
+- `condition_operator`: Comparison operator (>, <, >=, <=, ==, !=)
+- `condition_value`: The threshold value for comparison
+- `action`: The action to execute when condition is met
+
+**Example Use Case:**
+Create a simple moving average crossover algorithm:
+1. Create algorithm: "MA Crossover Strategy"
+2. Add entry rule: IF price > 50_day_ma THEN buy
+3. Add exit rule: IF price < 50_day_ma THEN sell
+4. Activate algorithm to enable trading
+
 ## Future Enhancements
 
 The following features are planned:
-- Trading Algorithm models with AlgorithmRules
-- Real-time stock price monitoring
-- Trading strategy implementation
-- Algorithm backtesting capabilities
+- Real-time stock price monitoring integration
+- Algorithm execution engine for live trading
+- Algorithm backtesting with historical data
 - Portfolio tracking and analytics
+- Paper trading mode for algorithm testing
+- Performance metrics and reporting
 
 ## Security Notes
 
