@@ -7,6 +7,7 @@ import watchlistRoutes from './routes/watchlist.js';
 import algorithmsRoutes from './routes/algorithms.js';
 import paperTradingRoutes from './routes/paperTrading.js';
 import backtestRoutes from './routes/backtest.js';
+import stocksRoutes from './routes/stocks.js';
 
 // Load environment variables
 dotenv.config();
@@ -25,6 +26,7 @@ app.use('/api/watchlist', watchlistRoutes);
 app.use('/api/algorithms', algorithmsRoutes);
 app.use('/api/paper-trading', paperTradingRoutes);
 app.use('/api/backtest', backtestRoutes);
+app.use('/api/stocks', stocksRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -36,6 +36,12 @@
   border-radius: 8px;
   padding: 1.5rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .summary-card.positive {
@@ -150,9 +156,10 @@
 .data-table td {
   padding: 1rem;
   border-bottom: 1px solid #ecf0f1;
+  color: #2c3e50;
 }
 
-.data-table tr:hover {
+.data-table tbody tr:hover {
   background: #f8f9fa;
 }
 
@@ -160,6 +167,17 @@
   font-family: 'Monaco', 'Courier New', monospace;
   font-weight: 600;
   color: #3498db;
+}
+
+.clickable-symbol {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clickable-symbol:hover {
+  color: #2980b9;
+  text-decoration: underline;
+  background: rgba(52, 152, 219, 0.1);
 }
 
 .positive {
@@ -203,6 +221,121 @@
   font-size: 0.875rem;
 }
 
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.filled {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.cancelled {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #dee2e6;
+}
+
+.empty-state h2 {
+  margin: 0 0 0.5rem 0;
+  color: #6c757d;
+  font-size: 1.25rem;
+}
+
+.empty-state p {
+  margin: 0 0 1.5rem 0;
+  color: #6c757d;
+}
+
 .full-width {
   width: 100%;
+}
+
+/* Responsive tables */
+@media (max-width: 768px) {
+  .paper-trading-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .header-actions {
+    width: 100%;
+    margin-top: 1rem;
+  }
+
+  .header-actions button {
+    flex: 1;
+  }
+
+  .account-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .trading-stats {
+    flex-direction: column;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab {
+    padding: 0.75rem 1rem;
+    white-space: nowrap;
+  }
+
+  .data-table {
+    font-size: 0.875rem;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 0.75rem 0.5rem;
+  }
+
+  /* Stack table on very small screens */
+  @media (max-width: 480px) {
+    .data-table thead {
+      display: none;
+    }
+
+    .data-table tr {
+      display: block;
+      margin-bottom: 1rem;
+      border: 1px solid #ecf0f1;
+      border-radius: 4px;
+      padding: 0.5rem;
+    }
+
+    .data-table td {
+      display: block;
+      text-align: right;
+      border: none;
+      padding: 0.5rem;
+    }
+
+    .data-table td::before {
+      content: attr(data-label);
+      float: left;
+      font-weight: 600;
+      color: #7f8c8d;
+    }
+  }
 }

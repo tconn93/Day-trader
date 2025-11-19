@@ -1,0 +1,16 @@
+.stock-item-wrapper:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.stock-info-clickable {
+  transition: all 0.2s;
+}
+
+.stock-info-clickable:hover {
+  opacity: 0.9;
+}
+
+.stock-info-clickable:active {
+  transform: scale(0.98);
+}

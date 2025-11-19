@@ -21,7 +21,7 @@ function Algorithms() {
   const fetchAlgorithms = async () => {
     try {
       const response = await algorithmsAPI.getAll();
-      setAlgorithms(response.data);
+      setAlgorithms(response.data.algorithms);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching algorithms:', error);

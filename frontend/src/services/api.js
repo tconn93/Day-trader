@@ -133,4 +133,16 @@ export const backtestAPI = {
     api.get(`/backtest/algorithm/${algorithmId}`)
 };
 
+// Stocks API
+export const stocksAPI = {
+  getQuote: (symbol) =>
+    api.get(`/stocks/quote/${symbol}`),
+
+  getMultipleQuotes: (symbols) =>
+    api.post('/stocks/quotes', { symbols }),
+
+  getHistoricalData: (symbol, range = '1mo', interval = '1d') =>
+    api.get(`/stocks/history/${symbol}`, { params: { range, interval } })
+};
+
 export default api;

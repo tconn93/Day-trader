@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { watchlistAPI } from '../services/api';
+import { watchlistAPI, stocksAPI } from '../services/api';
+import '../styles/Dashboard.css';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [watchlist, setWatchlist] = useState([]);
+  const [stockPrices, setStockPrices] = useState({});
   const [newStock, setNewStock] = useState({ symbol: '', companyName: '' });
   const [loading, setLoading] = useState(true);
+  const [loadingPrices, setLoadingPrices] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchWatchlist();
@@ -20,13 +23,32 @@ const Dashboard = () => {
     try {
       setLoading(true);
       const response = await watchlistAPI.getWatchlist();
-      setWatchlist(response.data.watchlist);
+      const stocks = response.data.watchlist;
+      setWatchlist(stocks);
       setError('');
+
+      // Fetch prices for all stocks in watchlist
+      if (stocks.length > 0) {
+        fetchStockPrices(stocks.map(s => s.symbol));
+      }
     } catch (err) {
       setError('Failed to load watchlist');
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStockPrices = async (symbols) => {
+    try {
+      setLoadingPrices(true);
+      const response = await stocksAPI.getMultipleQuotes(symbols);
+      setStockPrices(response.data.quotes);
+    } catch (err) {
+      console.error('Failed to fetch stock prices:', err);
+      // Don't show error to user, just log it
+    } finally {
+      setLoadingPrices(false);
     }
   };
 
@@ -64,20 +86,12 @@ const Dashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   return (
     <div style={styles.container}>
       <header style={styles.header}>
         <h1 style={styles.title}>Day Trader Dashboard</h1>
         <div style={styles.userSection}>
           <span style={styles.userName}>Welcome, {user?.name}</span>
-          <button onClick={handleLogout} style={styles.logoutButton}>
-            Logout
-          </button>
         </div>
       </header>
 
@@ -127,25 +141,61 @@ const Dashboard = () => {
             </p>
           ) : (
             <div style={styles.stockList}>
-              {watchlist.map((stock) => (
-                <div key={stock.id} style={styles.stockItem}>
-                  <div style={styles.stockInfo}>
-                    <span style={styles.stockSymbol}>{stock.symbol}</span>
-                    {stock.company_name && (
-                      <span style={styles.companyName}>{stock.company_name}</span>
-                    )}
-                    <span style={styles.addedDate}>
-                      Added: {new Date(stock.added_at).toLocaleDateString()}
-                    </span>
+              {watchlist.map((stock) => {
+                const quote = stockPrices[stock.symbol];
+                const priceChange = quote ? quote.change : 0;
+                const isPositive = priceChange >= 0;
+
+                return (
+                  <div key={stock.id} style={styles.stockItem} className="stock-item-wrapper">
+                    <div
+                      style={styles.stockInfoClickable}
+                      className="stock-info-clickable"
+                      onClick={() => navigate(`/stocks/${stock.symbol}`)}
+                    >
+                      <div style={styles.stockMainInfo}>
+                        <span style={styles.stockSymbol}>{stock.symbol}</span>
+                        {stock.company_name && (
+                          <span style={styles.companyName}>{stock.company_name}</span>
+                        )}
+                      </div>
+
+                      {loadingPrices ? (
+                        <span style={styles.priceLoading}>Loading...</span>
+                      ) : quote ? (
+                        <div style={styles.priceInfo}>
+                          <span style={styles.currentPrice}>
+                            ${quote.price.toFixed(2)}
+                          </span>
+                          <span style={{
+                            ...styles.priceChange,
+                            color: isPositive ? '#27ae60' : '#e74c3c'
+                          }}>
+                            {isPositive ? '+' : ''}
+                            {quote.change.toFixed(2)} ({isPositive ? '+' : ''}
+                            {quote.changePercent.toFixed(2)}%)
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={styles.priceUnavailable}>Price unavailable</span>
+                      )}
+
+                      <span style={styles.addedDate}>
+                        Added: {new Date(stock.added_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveStock(stock.symbol);
+                      }}
+                      style={styles.removeButton}
+                    >
+                      Remove
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleRemoveStock(stock.symbol)}
-                    style={styles.removeButton}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -180,15 +230,6 @@ const styles = {
   userName: {
     fontSize: '16px',
     color: '#666'
-  },
-  logoutButton: {
-    padding: '8px 16px',
-    fontSize: '14px',
-    backgroundColor: '#dc3545',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer'
   },
   main: {
     padding: '40px',
@@ -279,12 +320,21 @@ const styles = {
     padding: '20px',
     border: '1px solid #e0e0e0',
     borderRadius: '6px',
-    backgroundColor: '#fafafa'
+    backgroundColor: '#fafafa',
+    transition: 'all 0.2s',
   },
-  stockInfo: {
+  stockInfoClickable: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '5px'
+    gap: '8px',
+    flex: 1,
+    cursor: 'pointer',
+    minWidth: 0
+  },
+  stockMainInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px'
   },
   stockSymbol: {
     fontSize: '20px',
@@ -294,6 +344,30 @@ const styles = {
   companyName: {
     fontSize: '14px',
     color: '#666'
+  },
+  priceInfo: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '10px',
+    flexWrap: 'wrap'
+  },
+  currentPrice: {
+    fontSize: '24px',
+    fontWeight: '700',
+    color: '#2c3e50'
+  },
+  priceChange: {
+    fontSize: '14px',
+    fontWeight: '600'
+  },
+  priceLoading: {
+    fontSize: '14px',
+    color: '#999',
+    fontStyle: 'italic'
+  },
+  priceUnavailable: {
+    fontSize: '14px',
+    color: '#999'
   },
   addedDate: {
     fontSize: '12px',
@@ -306,7 +380,9 @@ const styles = {
     color: 'white',
     border: 'none',
     borderRadius: '4px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    flexShrink: 0,
+    transition: 'background-color 0.2s'
   }
 };
 

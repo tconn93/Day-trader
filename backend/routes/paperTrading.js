@@ -207,6 +207,11 @@ router.get('/portfolio', auth, async (req, res) => {
           await Position.updateMarketValue(account.id, position.symbol, quotes[position.symbol].price);
         }
       }
+
+      // Recalculate total value after updating positions
+      const positionsValue = await Position.getTotalValue(account.id);
+      const totalValue = account.balance + positionsValue;
+      await PaperAccount.updateTotalValue(account.id, totalValue);
     }
 
     // Get updated data

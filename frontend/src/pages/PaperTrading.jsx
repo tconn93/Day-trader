@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { paperTradingAPI } from '../services/api';
 import '../styles/PaperTrading.css';
 
 function PaperTrading() {
+  const navigate = useNavigate();
   const [portfolio, setPortfolio] = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -220,7 +222,12 @@ function PaperTrading() {
                 <tbody>
                   {positions.map((position) => (
                     <tr key={position.id}>
-                      <td className="symbol">{position.symbol}</td>
+                      <td
+                        className="symbol clickable-symbol"
+                        onClick={() => navigate(`/stocks/${position.symbol}`)}
+                      >
+                        {position.symbol}
+                      </td>
                       <td>{position.quantity}</td>
                       <td>{formatCurrency(position.average_price)}</td>
                       <td>{formatCurrency(position.current_price)}</td>
@@ -263,7 +270,12 @@ function PaperTrading() {
                   {orders.map((order) => (
                     <tr key={order.id}>
                       <td>{new Date(order.created_at).toLocaleString()}</td>
-                      <td className="symbol">{order.symbol}</td>
+                      <td
+                        className="symbol clickable-symbol"
+                        onClick={() => navigate(`/stocks/${order.symbol}`)}
+                      >
+                        {order.symbol}
+                      </td>
                       <td className={`order-side ${order.side}`}>{order.side.toUpperCase()}</td>
                       <td>{order.quantity}</td>
                       <td>{formatCurrency(order.price)}</td>
@@ -305,7 +317,12 @@ function PaperTrading() {
                     <tr key={tx.id}>
                       <td>{new Date(tx.created_at).toLocaleString()}</td>
                       <td className={`transaction-type ${tx.type}`}>{tx.type.toUpperCase()}</td>
-                      <td className="symbol">{tx.symbol || '-'}</td>
+                      <td
+                        className={tx.symbol ? 'symbol clickable-symbol' : 'symbol'}
+                        onClick={tx.symbol ? () => navigate(`/stocks/${tx.symbol}`) : undefined}
+                      >
+                        {tx.symbol || '-'}
+                      </td>
                       <td>{tx.quantity || '-'}</td>
                       <td>{tx.price ? formatCurrency(tx.price) : '-'}</td>
                       <td className={tx.amount >= 0 ? 'positive' : 'negative'}>

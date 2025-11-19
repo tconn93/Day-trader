@@ -9,6 +9,7 @@ import Algorithms from './pages/Algorithms';
 import AlgorithmBuilder from './pages/AlgorithmBuilder';
 import PaperTrading from './pages/PaperTrading';
 import Backtest from './pages/Backtest';
+import StockDetail from './pages/StockDetail';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
                 <Layout>
                   <Routes>
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/stocks/:symbol" element={<StockDetail />} />
                     <Route path="/algorithms" element={<Algorithms />} />
                     <Route path="/algorithms/:id" element={<AlgorithmBuilder />} />
                     <Route path="/paper-trading" element={<PaperTrading />} />
