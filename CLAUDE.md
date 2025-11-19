@@ -95,7 +95,23 @@ npm run preview                  # Preview production build
 
 3. Access the application at http://localhost:5173
 
+### First-Time Setup
+
+Before running the application for the first time:
+
+1. Copy environment files:
+   ```bash
+   cp backend/.env.example backend/.env
+   cp frontend/.env.example frontend/.env
+   ```
+
+2. **Important:** Update `backend/.env` with a secure JWT_SECRET (change from the default!)
+
+3. The SQLite database (`backend/database.sqlite`) will be automatically created and initialized when you first start the backend server
+
 ## Database Schema
+
+**Note:** The database file is auto-created at `backend/database.sqlite` on first server startup. All tables are initialized automatically via `config/database.js`.
 
 ### Users Table
 - `id`: Primary key
@@ -131,6 +147,7 @@ npm run preview                  # Preview production build
 - `action`: Action to take when condition is met
 - `order_index`: Order of rule execution
 - `created_at`: Creation timestamp
+- **Important:** Rules are automatically deleted when their parent algorithm is deleted (ON DELETE CASCADE)
 
 ## API Endpoints
 
