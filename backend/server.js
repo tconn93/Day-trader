@@ -5,6 +5,8 @@ import { initializeDatabase } from './config/database.js';
 import authRoutes from './routes/auth.js';
 import watchlistRoutes from './routes/watchlist.js';
 import algorithmsRoutes from './routes/algorithms.js';
+import paperTradingRoutes from './routes/paperTrading.js';
+import backtestRoutes from './routes/backtest.js';
 
 // Load environment variables
 dotenv.config();
@@ -21,6 +23,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/watchlist', watchlistRoutes);
 app.use('/api/algorithms', algorithmsRoutes);
+app.use('/api/paper-trading', paperTradingRoutes);
+app.use('/api/backtest', backtestRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
