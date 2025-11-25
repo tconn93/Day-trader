@@ -1,204 +1,175 @@
-import sqlite3 from 'sqlite3';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { Pool } from 'pg';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+dotenv.config();
 
-// Create database connection
-const db = new sqlite3.Database(join(__dirname, '..', 'database.sqlite'), (err) => {
-  if (err) {
-    console.error('Error connecting to database:', err);
-  } else {
-    console.log('Connected to SQLite database');
-  }
+const pool = new Pool({
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PWORD,
 });
 
-// Initialize database tables
-export const initializeDatabase = () => {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      // Users table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          email TEXT UNIQUE NOT NULL,
-          password TEXT NOT NULL,
-          name TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `, (err) => {
-        if (err) {
-          console.error('Error creating users table:', err);
-          reject(err);
-        }
-      });
+pool.on('connect', () => {
+  console.log('Connected to PostgreSQL database');
+});
 
-      // Watchlist table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS watchlist (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          symbol TEXT NOT NULL,
-          company_name TEXT,
-          added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id),
-          UNIQUE(user_id, symbol)
-        )
-      `, (err) => {
-        if (err) {
-          console.error('Error creating watchlist table:', err);
-          reject(err);
-        }
-      });
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
 
-      // Trading algorithms table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS trading_algorithms (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          name TEXT NOT NULL,
-          description TEXT,
-          is_active INTEGER DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-      `, (err) => {
-        if (err) {
-          console.error('Error creating trading_algorithms table:', err);
-          reject(err);
-        }
-      });
+export const initializeDatabase = async () => {
+  try {
+    // Users table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-      // Algorithm rules table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS algorithm_rules (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          algorithm_id INTEGER NOT NULL,
-          rule_type TEXT NOT NULL,
-          condition_field TEXT NOT NULL,
-          condition_operator TEXT NOT NULL,
-          condition_value TEXT NOT NULL,
-          action TEXT NOT NULL,
-          order_index INTEGER DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (algorithm_id) REFERENCES trading_algorithms(id) ON DELETE CASCADE
-        )
-      `);
+    // Watchlist table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS watchlist (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        symbol VARCHAR(10) NOT NULL,
+        company_name VARCHAR(255),
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, symbol)
+      )
+    `);
 
-      // Paper trading accounts table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS paper_accounts (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL UNIQUE,
-          balance REAL DEFAULT 100000.00,
-          initial_balance REAL DEFAULT 100000.00,
-          total_value REAL DEFAULT 100000.00,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-      `);
+    // Trading algorithms table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS trading_algorithms (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        is_active BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-      // Orders table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS orders (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          account_id INTEGER NOT NULL,
-          algorithm_id INTEGER,
-          symbol TEXT NOT NULL,
-          type TEXT NOT NULL,
-          side TEXT NOT NULL,
-          quantity INTEGER NOT NULL,
-          price REAL NOT NULL,
-          status TEXT DEFAULT 'pending',
-          filled_at DATETIME,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id),
-          FOREIGN KEY (account_id) REFERENCES paper_accounts(id),
-          FOREIGN KEY (algorithm_id) REFERENCES trading_algorithms(id)
-        )
-      `);
+    // Algorithm rules table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS algorithm_rules (
+        id SERIAL PRIMARY KEY,
+        algorithm_id INTEGER NOT NULL REFERENCES trading_algorithms(id) ON DELETE CASCADE,
+        rule_type VARCHAR(50) NOT NULL,
+        condition_field VARCHAR(100) NOT NULL,
+        condition_operator VARCHAR(10) NOT NULL,
+        condition_value TEXT NOT NULL,
+        action VARCHAR(50) NOT NULL,
+        order_index INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-      // Positions table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS positions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          account_id INTEGER NOT NULL,
-          symbol TEXT NOT NULL,
-          quantity INTEGER NOT NULL,
-          average_price REAL NOT NULL,
-          current_price REAL,
-          market_value REAL,
-          unrealized_pl REAL,
-          unrealized_pl_percent REAL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id),
-          FOREIGN KEY (account_id) REFERENCES paper_accounts(id),
-          UNIQUE(account_id, symbol)
-        )
-      `);
+    // Paper accounts table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS paper_accounts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        balance NUMERIC(15,2) DEFAULT 100000.00,
+        initial_balance NUMERIC(15,2) DEFAULT 100000.00,
+        total_value NUMERIC(15,2) DEFAULT 100000.00,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-      // Transactions table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS transactions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          account_id INTEGER NOT NULL,
-          order_id INTEGER,
-          type TEXT NOT NULL,
-          symbol TEXT,
-          quantity INTEGER,
-          price REAL,
-          amount REAL NOT NULL,
-          balance_after REAL NOT NULL,
-          description TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id),
-          FOREIGN KEY (account_id) REFERENCES paper_accounts(id),
-          FOREIGN KEY (order_id) REFERENCES orders(id)
-        )
-      `);
+    // Orders table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        account_id INTEGER NOT NULL REFERENCES paper_accounts(id),
+        algorithm_id INTEGER REFERENCES trading_algorithms(id),
+        symbol VARCHAR(10) NOT NULL,
+        type VARCHAR(20) NOT NULL,
+        side VARCHAR(10) NOT NULL,
+        quantity INTEGER NOT NULL,
+        price NUMERIC(10,2) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        filled_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-      // Backtests table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS backtests (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          algorithm_id INTEGER NOT NULL,
-          symbol TEXT NOT NULL,
-          start_date DATE NOT NULL,
-          end_date DATE NOT NULL,
-          initial_capital REAL NOT NULL,
-          final_capital REAL NOT NULL,
-          total_return REAL NOT NULL,
-          total_return_percent REAL NOT NULL,
-          total_trades INTEGER DEFAULT 0,
-          winning_trades INTEGER DEFAULT 0,
-          losing_trades INTEGER DEFAULT 0,
-          win_rate REAL,
-          max_drawdown REAL,
-          sharpe_ratio REAL,
-          results_json TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id),
-          FOREIGN KEY (algorithm_id) REFERENCES trading_algorithms(id)
-        )
-      `, (err) => {
-        if (err) {
-          console.error('Error creating backtests table:', err);
-          reject(err);
-        } else {
-          console.log('Database tables initialized');
-          resolve();
-        }
-      });
-    });
-  });
+    // Positions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS positions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        account_id INTEGER NOT NULL REFERENCES paper_accounts(id),
+        symbol VARCHAR(10) NOT NULL,
+        quantity INTEGER NOT NULL,
+        average_price NUMERIC(10,2) NOT NULL,
+        current_price NUMERIC(10,2),
+        market_value NUMERIC(15,2),
+        unrealized_pl NUMERIC(15,2),
+        unrealized_pl_percent NUMERIC(5,2),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(account_id, symbol)
+      )
+    `);
+
+    // Transactions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        account_id INTEGER NOT NULL REFERENCES paper_accounts(id),
+        order_id INTEGER REFERENCES orders(id),
+        type VARCHAR(20) NOT NULL,
+        symbol VARCHAR(10),
+        quantity INTEGER,
+        price NUMERIC(10,2),
+        amount NUMERIC(15,2) NOT NULL,
+        balance_after NUMERIC(15,2) NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Backtests table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS backtests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        algorithm_id INTEGER NOT NULL REFERENCES trading_algorithms(id),
+        symbol VARCHAR(10) NOT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        initial_capital NUMERIC(15,2) NOT NULL,
+        final_capital NUMERIC(15,2) NOT NULL,
+        total_return NUMERIC(15,2) NOT NULL,
+        total_return_percent NUMERIC(5,2) NOT NULL,
+        total_trades INTEGER DEFAULT 0,
+        winning_trades INTEGER DEFAULT 0,
+        losing_trades INTEGER DEFAULT 0,
+        win_rate NUMERIC(5,2),
+        max_drawdown NUMERIC(5,2),
+        sharpe_ratio NUMERIC(5,2),
+        results_json JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    console.log('PostgreSQL database tables initialized');
+  } catch (err) {
+    console.error('Error initializing database:', err);
+    throw err;
+  }
 };
 
-export default db;
+export default pool;

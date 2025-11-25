@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+import pool from '../config/database.js';
 
 /**
  * Order Model
@@ -12,183 +12,165 @@ class Order {
   static async create(orderData) {
     const { userId, accountId, algorithmId, symbol, type, side, quantity, price } = orderData;
 
-    return new Promise((resolve, reject) => {
-      db.run(
+    try {
+      const res = await pool.query(
         `INSERT INTO orders (user_id, account_id, algorithm_id, symbol, type, side, quantity, price, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-        [userId, accountId, algorithmId || null, symbol, type, side, quantity, price],
-        function(err) {
-          if (err) return reject(err);
-
-          resolve({
-            id: this.lastID,
-            ...orderData,
-            status: 'pending',
-            created_at: new Date().toISOString()
-          });
-        }
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending') RETURNING *`,
+        [userId, accountId, algorithmId || null, symbol, type, side, quantity, price]
       );
-    });
+      return {
+        ...res.rows[0],
+        created_at: res.rows[0].created_at.toISOString()
+      };
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get order by ID
    */
   static async getById(orderId) {
-    return new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM orders WHERE id = ?',
-        [orderId],
-        (err, order) => {
-          if (err) return reject(err);
-          resolve(order);
-        }
+    try {
+      const res = await pool.query(
+        'SELECT * FROM orders WHERE id = $1',
+        [orderId]
       );
-    });
+      return res.rows[0] || null;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get all orders for an account
    */
   static async getByAccount(accountId, limit = 100) {
-    return new Promise((resolve, reject) => {
-      db.all(
+    try {
+      const res = await pool.query(
         `SELECT * FROM orders
-         WHERE account_id = ?
+         WHERE account_id = $1
          ORDER BY created_at DESC
-         LIMIT ?`,
-        [accountId, limit],
-        (err, orders) => {
-          if (err) return reject(err);
-          resolve(orders || []);
-        }
+         LIMIT $2`,
+        [accountId, limit]
       );
-    });
+      return res.rows;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get orders by algorithm
    */
   static async getByAlgorithm(algorithmId, limit = 100) {
-    return new Promise((resolve, reject) => {
-      db.all(
+    try {
+      const res = await pool.query(
         `SELECT * FROM orders
-         WHERE algorithm_id = ?
+         WHERE algorithm_id = $1
          ORDER BY created_at DESC
-         LIMIT ?`,
-        [algorithmId, limit],
-        (err, orders) => {
-          if (err) return reject(err);
-          resolve(orders || []);
-        }
+         LIMIT $2`,
+        [algorithmId, limit]
       );
-    });
+      return res.rows;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get pending orders
    */
   static async getPending(accountId) {
-    return new Promise((resolve, reject) => {
-      db.all(
+    try {
+      const res = await pool.query(
         `SELECT * FROM orders
-         WHERE account_id = ? AND status = 'pending'
+         WHERE account_id = $1 AND status = 'pending'
          ORDER BY created_at ASC`,
-        [accountId],
-        (err, orders) => {
-          if (err) return reject(err);
-          resolve(orders || []);
-        }
+        [accountId]
       );
-    });
+      return res.rows;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Update order status
    */
   static async updateStatus(orderId, status) {
-    return new Promise((resolve, reject) => {
+    try {
       const filledAt = status === 'filled' ? new Date().toISOString() : null;
-
-      db.run(
+      await pool.query(
         `UPDATE orders
-         SET status = ?, filled_at = ?
-         WHERE id = ?`,
-        [status, filledAt, orderId],
-        (err) => {
-          if (err) return reject(err);
-          resolve();
-        }
+         SET status = $1, filled_at = $2
+         WHERE id = $3`,
+        [status, filledAt, orderId]
       );
-    });
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Fill an order (mark as executed)
    */
   static async fill(orderId) {
-    return new Promise((resolve, reject) => {
-      db.run(
+    try {
+      await pool.query(
         `UPDATE orders
          SET status = 'filled', filled_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [orderId],
-        function(err) {
-          if (err) return reject(err);
-          resolve();
-        }
+         WHERE id = $1`,
+        [orderId]
       );
-    });
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Cancel an order
    */
   static async cancel(orderId) {
-    return new Promise((resolve, reject) => {
-      db.run(
+    try {
+      const res = await pool.query(
         `UPDATE orders
          SET status = 'cancelled'
-         WHERE id = ? AND status = 'pending'`,
-        [orderId],
-        function(err) {
-          if (err) return reject(err);
-
-          if (this.changes === 0) {
-            return reject(new Error('Order cannot be cancelled'));
-          }
-
-          resolve();
-        }
+         WHERE id = $1 AND status = 'pending'`,
+        [orderId]
       );
-    });
+      if (res.rowCount === 0) {
+        throw new Error('Order cannot be cancelled');
+      }
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get order history for a symbol
    */
   static async getBySymbol(accountId, symbol, limit = 50) {
-    return new Promise((resolve, reject) => {
-      db.all(
+    try {
+      const res = await pool.query(
         `SELECT * FROM orders
-         WHERE account_id = ? AND symbol = ?
+         WHERE account_id = $1 AND symbol = $2
          ORDER BY created_at DESC
-         LIMIT ?`,
-        [accountId, symbol, limit],
-        (err, orders) => {
-          if (err) return reject(err);
-          resolve(orders || []);
-        }
+         LIMIT $3`,
+        [accountId, symbol, limit]
       );
-    });
+      return res.rows;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get order statistics
    */
   static async getStats(accountId) {
-    return new Promise((resolve, reject) => {
-      db.get(
+    try {
+      const res = await pool.query(
         `SELECT
           COUNT(*) as total_orders,
           SUM(CASE WHEN status = 'filled' THEN 1 ELSE 0 END) as filled_orders,
@@ -197,14 +179,13 @@ class Order {
           SUM(CASE WHEN side = 'buy' AND status = 'filled' THEN 1 ELSE 0 END) as total_buys,
           SUM(CASE WHEN side = 'sell' AND status = 'filled' THEN 1 ELSE 0 END) as total_sells
          FROM orders
-         WHERE account_id = ?`,
-        [accountId],
-        (err, stats) => {
-          if (err) return reject(err);
-          resolve(stats);
-        }
+         WHERE account_id = $1`,
+        [accountId]
       );
-    });
+      return res.rows[0];
+    } catch (err) {
+      throw err;
+    }
   }
 }
 

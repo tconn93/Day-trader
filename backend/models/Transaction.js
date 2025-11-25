@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+import pool from '../config/database.js';
 
 /**
  * Transaction Model
@@ -23,123 +23,115 @@ class Transaction {
       description
     } = transactionData;
 
-    return new Promise((resolve, reject) => {
-      db.run(
+    try {
+      const res = await pool.query(
         `INSERT INTO transactions
          (user_id, account_id, order_id, type, symbol, quantity, price, amount, balance_after, description)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, accountId, orderId || null, type, symbol || null, quantity || null, price || null, amount, balanceAfter, description || null],
-        function(err) {
-          if (err) return reject(err);
-
-          resolve({
-            id: this.lastID,
-            ...transactionData,
-            created_at: new Date().toISOString()
-          });
-        }
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [userId, accountId, orderId || null, type, symbol || null, quantity || null, price || null, amount, balanceAfter, description || null]
       );
-    });
+      return {
+        ...res.rows[0],
+        created_at: res.rows[0].created_at.toISOString()
+      };
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get transaction by ID
    */
   static async getById(transactionId) {
-    return new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM transactions WHERE id = ?',
-        [transactionId],
-        (err, transaction) => {
-          if (err) return reject(err);
-          resolve(transaction);
-        }
+    try {
+      const res = await pool.query(
+        'SELECT * FROM transactions WHERE id = $1',
+        [transactionId]
       );
-    });
+      return res.rows[0] || null;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get all transactions for an account
    */
   static async getByAccount(accountId, limit = 100) {
-    return new Promise((resolve, reject) => {
-      db.all(
+    try {
+      const res = await pool.query(
         `SELECT * FROM transactions
-         WHERE account_id = ?
+         WHERE account_id = $1
          ORDER BY created_at DESC
-         LIMIT ?`,
-        [accountId, limit],
-        (err, transactions) => {
-          if (err) return reject(err);
-          resolve(transactions || []);
-        }
+         LIMIT $2`,
+        [accountId, limit]
       );
-    });
+      return res.rows;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get transactions by type
    */
   static async getByType(accountId, type, limit = 100) {
-    return new Promise((resolve, reject) => {
-      db.all(
+    try {
+      const res = await pool.query(
         `SELECT * FROM transactions
-         WHERE account_id = ? AND type = ?
+         WHERE account_id = $1 AND type = $2
          ORDER BY created_at DESC
-         LIMIT ?`,
-        [accountId, type, limit],
-        (err, transactions) => {
-          if (err) return reject(err);
-          resolve(transactions || []);
-        }
+         LIMIT $3`,
+        [accountId, type, limit]
       );
-    });
+      return res.rows;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get transactions for a specific symbol
    */
   static async getBySymbol(accountId, symbol, limit = 50) {
-    return new Promise((resolve, reject) => {
-      db.all(
+    try {
+      const res = await pool.query(
         `SELECT * FROM transactions
-         WHERE account_id = ? AND symbol = ?
+         WHERE account_id = $1 AND symbol = $2
          ORDER BY created_at DESC
-         LIMIT ?`,
-        [accountId, symbol, limit],
-        (err, transactions) => {
-          if (err) return reject(err);
-          resolve(transactions || []);
-        }
+         LIMIT $3`,
+        [accountId, symbol, limit]
       );
-    });
+      return res.rows;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get transactions for a date range
    */
   static async getByDateRange(accountId, startDate, endDate) {
-    return new Promise((resolve, reject) => {
-      db.all(
+    try {
+      const res = await pool.query(
         `SELECT * FROM transactions
-         WHERE account_id = ?
-         AND created_at BETWEEN ? AND ?
+         WHERE account_id = $1
+         AND created_at BETWEEN $2 AND $3
          ORDER BY created_at DESC`,
-        [accountId, startDate, endDate],
-        (err, transactions) => {
-          if (err) return reject(err);
-          resolve(transactions || []);
-        }
+        [accountId, startDate, endDate]
       );
-    });
+      return res.rows;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get transaction statistics
    */
   static async getStats(accountId) {
-    return new Promise((resolve, reject) => {
-      db.get(
+    try {
+      const res = await pool.query(
         `SELECT
           COUNT(*) as total_transactions,
           SUM(CASE WHEN type = 'buy' THEN 1 ELSE 0 END) as total_buys,
@@ -149,30 +141,27 @@ class Transaction {
           SUM(CASE WHEN type = 'buy' THEN amount ELSE 0 END) as total_buy_amount,
           SUM(CASE WHEN type = 'sell' THEN amount ELSE 0 END) as total_sell_amount
          FROM transactions
-         WHERE account_id = ?`,
-        [accountId],
-        (err, stats) => {
-          if (err) return reject(err);
-          resolve(stats);
-        }
+         WHERE account_id = $1`,
+        [accountId]
       );
-    });
+      return res.rows[0];
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Clear all transactions (for account reset)
    */
   static async clearAll(accountId) {
-    return new Promise((resolve, reject) => {
-      db.run(
-        'DELETE FROM transactions WHERE account_id = ?',
-        [accountId],
-        (err) => {
-          if (err) return reject(err);
-          resolve();
-        }
+    try {
+      await pool.query(
+        'DELETE FROM transactions WHERE account_id = $1',
+        [accountId]
       );
-    });
+    } catch (err) {
+      throw err;
+    }
   }
 }
 

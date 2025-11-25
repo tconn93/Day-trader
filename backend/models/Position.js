@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+import pool from '../config/database.js';
 
 /**
  * Position Model
@@ -12,110 +12,97 @@ class Position {
   static async upsert(positionData) {
     const { userId, accountId, symbol, quantity, averagePrice } = positionData;
 
-    return new Promise((resolve, reject) => {
-      // Check if position exists
-      db.get(
-        'SELECT * FROM positions WHERE account_id = ? AND symbol = ?',
-        [accountId, symbol],
-        (err, existing) => {
-          if (err) return reject(err);
-
-          if (existing) {
-            // Update existing position
-            const newQuantity = existing.quantity + quantity;
-
-            if (newQuantity === 0) {
-              // Close position if quantity is zero
-              return this.close(accountId, symbol)
-                .then(resolve)
-                .catch(reject);
-            }
-
-            // Calculate new average price
-            const totalCost = (existing.quantity * existing.average_price) + (quantity * averagePrice);
-            const newAveragePrice = totalCost / newQuantity;
-
-            db.run(
-              `UPDATE positions
-               SET quantity = ?,
-                   average_price = ?,
-                   updated_at = CURRENT_TIMESTAMP
-               WHERE account_id = ? AND symbol = ?`,
-              [newQuantity, newAveragePrice, accountId, symbol],
-              function(err) {
-                if (err) return reject(err);
-                resolve({ id: existing.id, quantity: newQuantity, average_price: newAveragePrice });
-              }
-            );
-          } else {
-            // Create new position
-            db.run(
-              `INSERT INTO positions (user_id, account_id, symbol, quantity, average_price)
-               VALUES (?, ?, ?, ?, ?)`,
-              [userId, accountId, symbol, quantity, averagePrice],
-              function(err) {
-                if (err) return reject(err);
-                resolve({ id: this.lastID, quantity, average_price: averagePrice });
-              }
-            );
-          }
-        }
+    try {
+      let res = await pool.query(
+        'SELECT * FROM positions WHERE account_id = $1 AND symbol = $2',
+        [accountId, symbol]
       );
-    });
+      let existing = res.rows[0];
+
+      if (existing) {
+        // Update existing position
+        const newQuantity = existing.quantity + quantity;
+
+        if (newQuantity === 0) {
+          // Close position if quantity is zero
+          return this.close(accountId, symbol);
+        }
+
+        // Calculate new average price
+        const totalCost = (existing.quantity * existing.average_price) + (quantity * averagePrice);
+        const newAveragePrice = totalCost / newQuantity;
+
+        await pool.query(
+          `UPDATE positions
+           SET quantity = $1,
+               average_price = $2,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE account_id = $3 AND symbol = $4`,
+          [newQuantity, newAveragePrice, accountId, symbol]
+        );
+        return { id: existing.id, quantity: newQuantity, average_price: newAveragePrice };
+      } else {
+        // Create new position
+        res = await pool.query(
+          `INSERT INTO positions (user_id, account_id, symbol, quantity, average_price)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+          [userId, accountId, symbol, quantity, averagePrice]
+        );
+        return { id: res.rows[0].id, quantity, average_price: averagePrice };
+      }
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get position by symbol
    */
   static async getBySymbol(accountId, symbol) {
-    return new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM positions WHERE account_id = ? AND symbol = ?',
-        [accountId, symbol],
-        (err, position) => {
-          if (err) return reject(err);
-          resolve(position);
-        }
+    try {
+      const res = await pool.query(
+        'SELECT * FROM positions WHERE account_id = $1 AND symbol = $2',
+        [accountId, symbol]
       );
-    });
+      return res.rows[0] || null;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get all positions for an account
    */
   static async getByAccount(accountId) {
-    return new Promise((resolve, reject) => {
-      db.all(
-        'SELECT * FROM positions WHERE account_id = ? ORDER BY symbol',
-        [accountId],
-        (err, positions) => {
-          if (err) return reject(err);
-          resolve(positions || []);
-        }
+    try {
+      const res = await pool.query(
+        'SELECT * FROM positions WHERE account_id = $1 ORDER BY symbol',
+        [accountId]
       );
-    });
+      return res.rows;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Update position with current market price
    */
   static async updateMarketValue(accountId, symbol, currentPrice) {
-    return new Promise((resolve, reject) => {
-      db.run(
+    try {
+      await pool.query(
         `UPDATE positions
-         SET current_price = ?,
-             market_value = quantity * ?,
-             unrealized_pl = (? - average_price) * quantity,
-             unrealized_pl_percent = ((? - average_price) / average_price) * 100,
+         SET current_price = $1,
+             market_value = quantity * $1,
+             unrealized_pl = ($1 - average_price) * quantity,
+             unrealized_pl_percent = (($1 - average_price) / average_price) * 100,
              updated_at = CURRENT_TIMESTAMP
-         WHERE account_id = ? AND symbol = ?`,
-        [currentPrice, currentPrice, currentPrice, currentPrice, accountId, symbol],
-        function(err) {
-          if (err) return reject(err);
-          resolve();
-        }
+         WHERE account_id = $2 AND symbol = $3`,
+        [currentPrice, accountId, symbol]
       );
-    });
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
@@ -139,70 +126,64 @@ class Position {
    * Close a position (delete)
    */
   static async close(accountId, symbol) {
-    return new Promise((resolve, reject) => {
-      db.run(
-        'DELETE FROM positions WHERE account_id = ? AND symbol = ?',
-        [accountId, symbol],
-        function(err) {
-          if (err) return reject(err);
-          resolve();
-        }
+    try {
+      await pool.query(
+        'DELETE FROM positions WHERE account_id = $1 AND symbol = $2',
+        [accountId, symbol]
       );
-    });
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get total positions value
    */
   static async getTotalValue(accountId) {
-    return new Promise((resolve, reject) => {
-      db.get(
-        'SELECT COALESCE(SUM(market_value), 0) as total FROM positions WHERE account_id = ?',
-        [accountId],
-        (err, result) => {
-          if (err) return reject(err);
-          resolve(result.total || 0);
-        }
+    try {
+      const res = await pool.query(
+        'SELECT COALESCE(SUM(market_value), 0) as total FROM positions WHERE account_id = $1',
+        [accountId]
       );
-    });
+      return parseFloat(res.rows[0].total);
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Get positions statistics
    */
   static async getStats(accountId) {
-    return new Promise((resolve, reject) => {
-      db.get(
+    try {
+      const res = await pool.query(
         `SELECT
           COUNT(*) as total_positions,
           COALESCE(SUM(market_value), 0) as total_market_value,
           COALESCE(SUM(unrealized_pl), 0) as total_unrealized_pl,
           COALESCE(AVG(unrealized_pl_percent), 0) as avg_unrealized_pl_percent
          FROM positions
-         WHERE account_id = ?`,
-        [accountId],
-        (err, stats) => {
-          if (err) return reject(err);
-          resolve(stats);
-        }
+         WHERE account_id = $1`,
+        [accountId]
       );
-    });
+      return res.rows[0];
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
    * Clear all positions (for account reset)
    */
   static async clearAll(accountId) {
-    return new Promise((resolve, reject) => {
-      db.run(
-        'DELETE FROM positions WHERE account_id = ?',
-        [accountId],
-        (err) => {
-          if (err) return reject(err);
-          resolve();
-        }
+    try {
+      await pool.query(
+        'DELETE FROM positions WHERE account_id = $1',
+        [accountId]
       );
-    });
+    } catch (err) {
+      throw err;
+    }
   }
 }
 

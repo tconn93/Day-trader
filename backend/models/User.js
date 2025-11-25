@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+import pool from '../config/database.js';
 import bcrypt from 'bcryptjs';
 
 class User {
@@ -6,53 +6,35 @@ class User {
   static async create(email, password, name) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    return new Promise((resolve, reject) => {
-      db.run(
-        'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
-        [email, hashedPassword, name],
-        function(err) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve({ id: this.lastID, email, name });
-          }
-        }
+    try {
+      const res = await pool.query(
+        'INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING id',
+        [email, hashedPassword, name]
       );
-    });
+      return { id: res.rows[0].id, email, name };
+    } catch (err) {
+      throw err;
+    }
   }
 
   // Find user by email
   static async findByEmail(email) {
-    return new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM users WHERE email = ?',
-        [email],
-        (err, row) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(row);
-          }
-        }
-      );
-    });
+    try {
+      const res = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+      return res.rows[0] || null;
+    } catch (err) {
+      throw err;
+    }
   }
 
   // Find user by ID
   static async findById(id) {
-    return new Promise((resolve, reject) => {
-      db.get(
-        'SELECT id, email, name, created_at FROM users WHERE id = ?',
-        [id],
-        (err, row) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(row);
-          }
-        }
-      );
-    });
+    try {
+      const res = await pool.query('SELECT id, email, name, created_at FROM users WHERE id = $1', [id]);
+      return res.rows[0] || null;
+    } catch (err) {
+      throw err;
+    }
   }
 
   // Verify password

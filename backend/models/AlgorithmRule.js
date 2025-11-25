@@ -1,63 +1,51 @@
-import db from '../config/database.js';
+import pool from '../config/database.js';
 
 class AlgorithmRule {
   // Create a new rule for an algorithm
   static async create(algorithmId, ruleData) {
     const { rule_type, condition_field, condition_operator, condition_value, action, order_index = 0 } = ruleData;
 
-    return new Promise((resolve, reject) => {
-      db.run(
+    try {
+      const res = await pool.query(
         `INSERT INTO algorithm_rules
         (algorithm_id, rule_type, condition_field, condition_operator, condition_value, action, order_index)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [algorithmId, rule_type, condition_field, condition_operator, condition_value, action, order_index],
-        function(err) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve({
-              id: this.lastID,
-              algorithm_id: algorithmId,
-              ...ruleData
-            });
-          }
-        }
+        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [algorithmId, rule_type, condition_field, condition_operator, condition_value, action, order_index]
       );
-    });
+      return {
+        id: res.rows[0].id,
+        algorithm_id: algorithmId,
+        ...ruleData
+      };
+    } catch (err) {
+      throw err;
+    }
   }
 
   // Get all rules for an algorithm
   static async findByAlgorithmId(algorithmId) {
-    return new Promise((resolve, reject) => {
-      db.all(
-        'SELECT * FROM algorithm_rules WHERE algorithm_id = ? ORDER BY order_index ASC',
-        [algorithmId],
-        (err, rows) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(rows);
-          }
-        }
+    try {
+      const res = await pool.query(
+        'SELECT * FROM algorithm_rules WHERE algorithm_id = $1 ORDER BY order_index ASC',
+        [algorithmId]
       );
-    });
+      return res.rows;
+    } catch (err) {
+      throw err;
+    }
   }
 
   // Get rule by ID
   static async findById(id) {
-    return new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM algorithm_rules WHERE id = ?',
-        [id],
-        (err, row) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(row);
-          }
-        }
+    try {
+      const res = await pool.query(
+        'SELECT * FROM algorithm_rules WHERE id = $1',
+        [id]
       );
-    });
+      return res.rows[0] || null;
+    } catch (err) {
+      throw err;
+    }
   }
 
   // Update rule
@@ -65,82 +53,74 @@ class AlgorithmRule {
     const { rule_type, condition_field, condition_operator, condition_value, action, order_index } = updates;
     const fields = [];
     const values = [];
+    let paramIndex = 1;
 
     if (rule_type !== undefined) {
-      fields.push('rule_type = ?');
+      fields.push(`rule_type = $${paramIndex++}`);
       values.push(rule_type);
     }
     if (condition_field !== undefined) {
-      fields.push('condition_field = ?');
+      fields.push(`condition_field = $${paramIndex++}`);
       values.push(condition_field);
     }
     if (condition_operator !== undefined) {
-      fields.push('condition_operator = ?');
+      fields.push(`condition_operator = $${paramIndex++}`);
       values.push(condition_operator);
     }
     if (condition_value !== undefined) {
-      fields.push('condition_value = ?');
+      fields.push(`condition_value = $${paramIndex++}`);
       values.push(condition_value);
     }
     if (action !== undefined) {
-      fields.push('action = ?');
+      fields.push(`action = $${paramIndex++}`);
       values.push(action);
     }
     if (order_index !== undefined) {
-      fields.push('order_index = ?');
+      fields.push(`order_index = $${paramIndex++}`);
       values.push(order_index);
     }
 
     if (fields.length === 0) {
-      return Promise.resolve({ changes: 0 });
+      return { changes: 0 };
     }
 
     values.push(id);
-    const query = `UPDATE algorithm_rules SET ${fields.join(', ')} WHERE id = ?`;
+    fields.push(`id = $${paramIndex++}`);
+    const setClause = fields.slice(0, -1).join(', ');
+    const query = `UPDATE algorithm_rules SET ${setClause} WHERE id = $${paramIndex-1}`;
 
-    return new Promise((resolve, reject) => {
-      db.run(query, values, function(err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve({ changes: this.changes });
-        }
-      });
-    });
+    try {
+      const res = await pool.query(query, values);
+      return { changes: res.rowCount };
+    } catch (err) {
+      throw err;
+    }
   }
 
   // Delete rule
   static async delete(id) {
-    return new Promise((resolve, reject) => {
-      db.run(
-        'DELETE FROM algorithm_rules WHERE id = ?',
-        [id],
-        function(err) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve({ changes: this.changes });
-          }
-        }
+    try {
+      const res = await pool.query(
+        'DELETE FROM algorithm_rules WHERE id = $1',
+        [id]
       );
-    });
+      return { changes: res.rowCount };
+    } catch (err) {
+      throw err;
+    }
   }
 
   // Delete all rules for an algorithm
   static async deleteByAlgorithmId(algorithmId) {
-    return new Promise((resolve, reject) => {
-      db.run(
-        'DELETE FROM algorithm_rules WHERE algorithm_id = ?',
-        [algorithmId],
-        function(err) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve({ changes: this.changes });
-          }
-        }
+    try {
+      const res = await pool.query(
+        'DELETE FROM algorithm_rules WHERE algorithm_id = $1',
+        [algorithmId]
       );
-    });
+      return { changes: res.rowCount };
+    } catch (err) {
+      throw err;
+    }
   }
 }
 

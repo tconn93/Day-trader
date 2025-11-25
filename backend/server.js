@@ -76,17 +76,20 @@ app.use((err, req, res, next) => {
 });
 
 // Initialize database and start server
-initializeDatabase()
-  .then(() => {
+const startServer = async () => {
+  try {
+    await initializeDatabase();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV}`);
       console.log(`API Documentation: http://localhost:${PORT}/`);
     });
-  })
-  .catch((err) => {
+  } catch (err) {
     console.error('Failed to initialize database:', err);
     process.exit(1);
-  });
+  }
+};
+
+startServer();
 
 export default app;
