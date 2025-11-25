@@ -22,8 +22,8 @@ class ExecutionEngine {
    */
   async startAlgorithm(algorithmId, userId, symbols = []) {
     try {
-      const algorithm = await TradingAlgorithm.getById(algorithmId);
-      if (!algorithm || algorithm.user_id !== userId) {
+      const algorithm = await TradingAlgorithm.findById(algorithmId, userId);
+      if (!algorithm) {
         throw new Error('Algorithm not found');
       }
 
@@ -31,7 +31,7 @@ class ExecutionEngine {
         throw new Error('Algorithm is not active');
       }
 
-      const rules = await AlgorithmRule.getByAlgorithm(algorithmId);
+      const rules = await AlgorithmRule.findByAlgorithmId(algorithmId);
       if (!rules || rules.length === 0) {
         throw new Error('Algorithm has no rules');
       }
@@ -106,19 +106,20 @@ class ExecutionEngine {
         // Prepare market context
         const marketContext = {
           symbol,
-          price: quote.price,
-          open: quote.open,
-          high: quote.high,
-          low: quote.low,
-          volume: quote.volume,
-          change: quote.change,
-          changePercent: quote.changePercent,
+          price: parseFloat(quote.price),
+          open: parseFloat(quote.open),
+          high: parseFloat(quote.high),
+          low: parseFloat(quote.low),
+          volume: parseInt(quote.volume),
+          change: parseFloat(quote.change),
+          changePercent: parseFloat(quote.changePercent),
           position: position ? {
-            quantity: position.quantity,
-            averagePrice: position.average_price,
-            unrealizedPL: position.unrealized_pl,
-            unrealizedPLPercent: position.unrealized_pl_percent
-          } : null
+            quantity: parseInt(position.quantity),
+            averagePrice: parseFloat(position.average_price),
+            unrealizedPL: parseFloat(position.unrealized_pl || 0),
+            unrealizedPLPercent: parseFloat(position.unrealized_pl_percent || 0)
+          } : null,
+          balance: parseFloat(account.balance)
         };
 
         // Sort rules by order_index
@@ -154,7 +155,7 @@ class ExecutionEngine {
       const posField = condition_field.split('.')[1];
       fieldValue = marketContext.position[posField];
     } else if (condition_field === 'balance') {
-      fieldValue = account.balance;
+      fieldValue = marketContext.balance;
     } else {
       fieldValue = marketContext[condition_field];
     }
@@ -252,7 +253,7 @@ class ExecutionEngine {
     // Get current account
     const account = await PaperAccount.getById(accountId);
 
-    if (account.balance < totalCost) {
+    if (parseFloat(account.balance) < totalCost) {
       console.log(`Insufficient balance for buy: ${symbol} x${quantity}`);
       return;
     }
@@ -273,7 +274,7 @@ class ExecutionEngine {
     await Order.fill(order.id);
 
     // Update account balance
-    const newBalance = account.balance - totalCost;
+    const newBalance = parseFloat(account.balance) - totalCost;
     await PaperAccount.updateBalance(accountId, newBalance);
 
     // Update or create position
@@ -327,7 +328,7 @@ class ExecutionEngine {
     await Order.fill(order.id);
 
     // Update account balance
-    const newBalance = account.balance + totalProceeds;
+    const newBalance = parseFloat(account.balance) + totalProceeds;
     await PaperAccount.updateBalance(accountId, newBalance);
 
     // Update position

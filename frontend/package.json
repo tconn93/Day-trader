@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+     "deploy": "scp -r ./dist/* tcon@webhost:/var/www/tyler.ad/html/"
   },
   "dependencies": {
     "axios": "^1.13.2",
