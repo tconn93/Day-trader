@@ -18,6 +18,10 @@ class PaperAccount {
       let account = res.rows[0];
 
       if (account) {
+        // Parse numeric fields
+        account.balance = parseFloat(account.balance);
+        account.initial_balance = parseFloat(account.initial_balance);
+        account.total_value = parseFloat(account.total_value);
         return account;
       }
 
@@ -27,7 +31,12 @@ class PaperAccount {
          VALUES ($1, 100000.00, 100000.00, 100000.00) RETURNING *`,
         [userId]
       );
-      return res.rows[0];
+      account = res.rows[0];
+      // Parse numeric fields
+      account.balance = parseFloat(account.balance);
+      account.initial_balance = parseFloat(account.initial_balance);
+      account.total_value = parseFloat(account.total_value);
+      return account;
     } catch (err) {
       throw err;
     }
@@ -42,7 +51,14 @@ class PaperAccount {
         'SELECT * FROM paper_accounts WHERE id = $1',
         [accountId]
       );
-      return res.rows[0] || null;
+      const account = res.rows[0] || null;
+      if (account) {
+        // Parse numeric fields
+        account.balance = parseFloat(account.balance);
+        account.initial_balance = parseFloat(account.initial_balance);
+        account.total_value = parseFloat(account.total_value);
+      }
+      return account;
     } catch (err) {
       throw err;
     }
@@ -57,7 +73,7 @@ class PaperAccount {
         `UPDATE paper_accounts
          SET balance = $1, updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
-        [newBalance, accountId]
+        [parseFloat(newBalance), accountId]
       );
     } catch (err) {
       throw err;
@@ -73,7 +89,7 @@ class PaperAccount {
         `UPDATE paper_accounts
          SET total_value = $1, updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
-        [totalValue, accountId]
+        [parseFloat(totalValue), accountId]
       );
     } catch (err) {
       throw err;
@@ -99,7 +115,7 @@ class PaperAccount {
         `UPDATE paper_accounts
          SET balance = $1, total_value = $1, updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
-        [account.initial_balance, accountId]
+        [parseFloat(account.initial_balance), accountId]
       );
     } catch (err) {
       throw err;
@@ -114,15 +130,26 @@ class PaperAccount {
       const res = await pool.query(
         `SELECT
           pa.*,
-          (pa.total_value - pa.initial_balance) as total_pl,
-          ((pa.total_value - pa.initial_balance) / pa.initial_balance * 100) as total_pl_percent,
-          (SELECT COUNT(*) FROM orders WHERE account_id = pa.id AND status = 'filled') as total_trades,
-          (SELECT COUNT(*) FROM positions WHERE account_id = pa.id) as open_positions
+          (pa.total_value - pa.initial_balance)::NUMERIC as total_pl,
+          ((pa.total_value - pa.initial_balance) / pa.initial_balance * 100)::NUMERIC(5,2) as total_pl_percent,
+          (SELECT COUNT(*) FROM orders WHERE account_id = pa.id AND status = 'filled')::INTEGER as total_trades,
+          (SELECT COUNT(*) FROM positions WHERE account_id = pa.id)::INTEGER as open_positions
          FROM paper_accounts pa
          WHERE pa.id = $1`,
         [accountId]
       );
-      return res.rows[0] || null;
+      const stats = res.rows[0] || null;
+      if (stats) {
+        // Parse numeric fields
+        stats.balance = parseFloat(stats.balance);
+        stats.initial_balance = parseFloat(stats.initial_balance);
+        stats.total_value = parseFloat(stats.total_value);
+        stats.total_pl = parseFloat(stats.total_pl);
+        stats.total_pl_percent = parseFloat(stats.total_pl_percent);
+        stats.total_trades = parseInt(stats.total_trades);
+        stats.open_positions = parseInt(stats.open_positions);
+      }
+      return stats;
     } catch (err) {
       throw err;
     }

@@ -33,7 +33,7 @@ router.get('/account', auth, async (req, res) => {
 
       // Recalculate total value
       const positionsValue = await Position.getTotalValue(account.id);
-      const totalValue = account.balance + positionsValue;
+      const totalValue = parseFloat(account.balance) + parseFloat(positionsValue);
       await PaperAccount.updateTotalValue(account.id, totalValue);
     }
 
@@ -135,27 +135,27 @@ router.post(
 
       // Get current price
       const quote = await marketData.getQuote(symbol);
-      const price = quote.price;
+      const price = parseFloat(quote.price);
 
       if (side === 'buy') {
-        const totalCost = quantity * price;
+        const totalCost = parseInt(quantity) * price;
 
-        if (account.balance < totalCost) {
+        if (parseFloat(account.balance) < totalCost) {
           return res.status(400).json({ error: 'Insufficient balance' });
         }
 
         // Execute buy
-        await executionEngine.executeBuy(req.user.id, account.id, null, symbol, quantity, price);
+        await executionEngine.executeBuy(req.user.id, account.id, null, symbol, parseInt(quantity), price);
       } else {
         // Check position
         const position = await Position.getBySymbol(account.id, symbol);
 
-        if (!position || position.quantity < quantity) {
+        if (!position || parseInt(position.quantity) < parseInt(quantity)) {
           return res.status(400).json({ error: 'Insufficient shares' });
         }
 
         // Execute sell
-        await executionEngine.executeSell(req.user.id, account.id, null, symbol, quantity, price);
+        await executionEngine.executeSell(req.user.id, account.id, null, symbol, parseInt(quantity), price);
       }
 
       res.json({ success: true, message: 'Order executed' });
@@ -210,7 +210,7 @@ router.get('/portfolio', auth, async (req, res) => {
 
       // Recalculate total value after updating positions
       const positionsValue = await Position.getTotalValue(account.id);
-      const totalValue = account.balance + positionsValue;
+      const totalValue = parseFloat(account.balance) + parseFloat(positionsValue);
       await PaperAccount.updateTotalValue(account.id, totalValue);
     }
 
@@ -232,7 +232,7 @@ router.get('/portfolio', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting portfolio:', error);
-    res.status(500).json({ error: 'Failed to get portfolio' });
+    res.status(500).json({ error: 'Failed to get portfolio', details: error.message });
   }
 });
 
